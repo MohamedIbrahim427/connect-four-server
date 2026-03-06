@@ -1,0 +1,1036 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CONNECT FOUR</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:       #07070f;
+    --surface:  #10101c;
+    --surface2: #181828;
+    --p1:       #ef4444;
+    --p1-glow:  rgba(239,68,68,0.45);
+    --p1-dark:  #b91c1c;
+    --p2:       #eab308;
+    --p2-glow:  rgba(234,179,8,0.4);
+    --p2-dark:  #a16207;
+    --accent:   #00d4ff;
+    --text:     #e8e8f2;
+    --muted:    #44445a;
+    --border:   rgba(255,255,255,0.07);
+
+    /* Classic board */
+    --board-color:  #1e3a8a;
+    --board-shadow: #172554;
+    --hole-bg:      #0a0a18;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Share Tech Mono', monospace;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow-x: hidden;
+    position: relative;
+  }
+
+  /* ── BG GRID ── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(0,212,255,0.022) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,255,0.022) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none; z-index: 0;
+  }
+  body::after {
+    content: '';
+    position: fixed; inset: 0;
+    background: radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,0.72) 100%);
+    pointer-events: none; z-index: 0;
+  }
+
+  /* ── HEADER ── */
+  header {
+    position: relative; z-index: 1;
+    text-align: center;
+    padding: 26px 20px 0;
+  }
+  .logo {
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 900;
+    font-size: clamp(1.8rem, 7vw, 3.2rem);
+    letter-spacing: 0.08em;
+    line-height: 1;
+  }
+  .logo .c1 { color: var(--p1); text-shadow: 0 0 18px var(--p1-glow), 0 0 40px var(--p1-glow); }
+  .logo .c2 { color: var(--text); }
+  .logo .c3 { color: var(--p2); text-shadow: 0 0 18px var(--p2-glow), 0 0 40px var(--p2-glow); }
+  .logo-sub {
+    font-size: 0.6rem; letter-spacing: 0.45em;
+    color: var(--muted); text-transform: uppercase; margin-top: 4px;
+  }
+
+  /* ── MAIN ── */
+  main {
+    position: relative; z-index: 1;
+    width: 100%; max-width: 660px;
+    padding: 20px 16px 48px;
+    display: flex; flex-direction: column; align-items: center;
+  }
+
+  /* ── SCREENS ── */
+  .screen {
+    display: none; flex-direction: column;
+    align-items: center; width: 100%;
+    animation: fadeUp .35s ease both;
+  }
+  .screen.active { display: flex; }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(18px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── SECTION LABEL ── */
+  .section-label {
+    font-size: 0.62rem; letter-spacing: 0.4em;
+    color: var(--muted); text-transform: uppercase;
+    margin-bottom: 22px; text-align: center;
+  }
+
+  /* ── CARDS ── */
+  .card-grid { display: grid; gap: 14px; width: 100%; }
+  .card-grid.two  { grid-template-columns: 1fr 1fr; max-width: 480px; }
+  .card-grid.four { grid-template-columns: 1fr 1fr; max-width: 440px; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 26px 16px 22px;
+    cursor: pointer; text-align: center;
+    transition: transform .22s, box-shadow .22s, border-color .22s;
+    position: relative; overflow: hidden;
+    user-select: none;
+  }
+  .card:hover { transform: translateY(-4px); }
+  .card:active { transform: translateY(-1px); }
+
+  .card.v-red:hover    { border-color: var(--p1); box-shadow: 0 0 22px var(--p1-glow), 0 10px 30px rgba(0,0,0,.5); }
+  .card.v-yellow:hover { border-color: var(--p2); box-shadow: 0 0 22px var(--p2-glow), 0 10px 30px rgba(0,0,0,.5); }
+  .card.v-cyan:hover   { border-color: var(--accent); box-shadow: 0 0 22px rgba(0,212,255,.35), 0 10px 30px rgba(0,0,0,.5); }
+  .card.v-green:hover  { border-color: #44ff88; box-shadow: 0 0 22px rgba(68,255,136,.3), 0 10px 30px rgba(0,0,0,.5); }
+  .card.v-amber:hover  { border-color: #ffbb00; box-shadow: 0 0 22px rgba(255,187,0,.3), 0 10px 30px rgba(0,0,0,.5); }
+  .card.v-orange:hover { border-color: #ff7722; box-shadow: 0 0 22px rgba(255,119,34,.3), 0 10px 30px rgba(0,0,0,.5); }
+  .card.v-purple:hover { border-color: #cc44ff; box-shadow: 0 0 22px rgba(204,68,255,.3), 0 10px 30px rgba(0,0,0,.5); }
+
+  .card-icon  { font-size: 2.2rem; display: block; margin-bottom: 10px; }
+  .card-title {
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 700; font-size: 0.8rem;
+    letter-spacing: 0.1em; text-transform: uppercase;
+  }
+  .card.v-red    .card-title { color: var(--p1); }
+  .card.v-yellow .card-title { color: var(--p2); }
+  .card.v-cyan   .card-title { color: var(--accent); }
+  .card.v-green  .card-title { color: #44ff88; }
+  .card.v-amber  .card-title { color: #ffbb00; }
+  .card.v-orange .card-title { color: #ff7722; }
+  .card.v-purple .card-title { color: #cc44ff; }
+  .card-desc { font-size: 0.67rem; color: var(--muted); margin-top: 6px; line-height: 1.55; }
+
+  /* ── BACK BUTTON ── */
+  .back-btn {
+    background: none; border: 1px solid var(--border);
+    color: var(--muted); font-family: 'Share Tech Mono', monospace;
+    font-size: 0.7rem; letter-spacing: 0.2em;
+    padding: 8px 18px; border-radius: 7px;
+    cursor: pointer; margin-bottom: 26px;
+    transition: all .2s; align-self: flex-start;
+  }
+  .back-btn:hover { color: var(--text); border-color: rgba(255,255,255,.22); }
+
+  /* ── ONLINE BOX ── */
+  .online-box {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 18px; padding: 30px 28px;
+    width: 100%; max-width: 420px; text-align: center;
+  }
+  .status-badge {
+    display: inline-block; font-size: 0.7rem;
+    letter-spacing: 0.18em; padding: 8px 18px;
+    border-radius: 30px; margin-bottom: 18px;
+  }
+  .status-badge.idle     { background: rgba(68,68,90,.3); color: var(--muted); border: 1px solid var(--border); }
+  .status-badge.searching{ background: rgba(0,212,255,.1); color: var(--accent); border: 1px solid rgba(0,212,255,.3); animation: blink 1.4s ease infinite; }
+  .status-badge.error    { background: rgba(239,68,68,.1); color: var(--p1); border: 1px solid rgba(239,68,68,.3); }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.45} }
+
+  .spinner {
+    width: 48px; height: 48px; border-radius: 50%;
+    border: 3px solid var(--border); border-top-color: var(--accent);
+    animation: spin 1s linear infinite; margin: 0 auto 20px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .online-note { font-size: 0.65rem; color: var(--muted); margin-top: 14px; line-height: 1.75; }
+  .online-note code { background: #0b0b18; padding: 2px 7px; border-radius: 4px; color: #44ff88; font-size: 0.62rem; }
+
+  /* ── GAME HEADER ── */
+  .game-header {
+    display: flex; align-items: center;
+    justify-content: space-between;
+    width: 100%; margin-bottom: 16px; gap: 10px;
+  }
+  .player-panel {
+    flex: 1; background: var(--surface);
+    border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px 12px; text-align: center;
+    transition: border-color .3s, box-shadow .3s;
+  }
+  .player-panel.active-p1 { border-color: var(--p1); box-shadow: 0 0 14px var(--p1-glow); }
+  .player-panel.active-p2 { border-color: var(--p2); box-shadow: 0 0 14px var(--p2-glow); }
+  .pp-label { font-size: 0.57rem; letter-spacing: .22em; color: var(--muted); text-transform: uppercase; }
+  .pp-name  { font-family: 'Orbitron', sans-serif; font-size: 0.72rem; font-weight: 700; margin-top: 2px; }
+  #pp-p1 .pp-name { color: var(--p1); }
+  #pp-p2 .pp-name { color: var(--p2); }
+
+  .turn-hub {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 9px; padding: 8px 12px; text-align: center; min-width: 72px;
+  }
+  .turn-dot {
+    width: 12px; height: 12px; border-radius: 50%;
+    margin: 0 auto 4px; transition: all .3s;
+  }
+  .turn-dot.p1 { background: var(--p1); box-shadow: 0 0 8px var(--p1); }
+  .turn-dot.p2 { background: var(--p2); box-shadow: 0 0 8px var(--p2); }
+  .turn-hub-lbl { font-size: 0.52rem; letter-spacing: .18em; color: var(--muted); text-transform: uppercase; }
+
+  /* ── SCORE ROW ── */
+  .score-row {
+    display: flex; align-items: center;
+    justify-content: center; gap: 18px; margin-bottom: 14px;
+  }
+  .score-item { text-align: center; }
+  .score-val  { font-family: 'Orbitron', sans-serif; font-size: 1.8rem; font-weight: 900; line-height: 1; }
+  .score-item.s-p1 .score-val { color: var(--p1); text-shadow: 0 0 12px var(--p1-glow); }
+  .score-item.s-p2 .score-val { color: var(--p2); text-shadow: 0 0 12px var(--p2-glow); }
+  .score-lbl  { font-size: 0.56rem; letter-spacing: .2em; color: var(--muted); }
+  .score-sep  { font-family: 'Orbitron', sans-serif; font-size: 1.2rem; color: var(--muted); }
+
+  /* ═══════════════════════════════
+     CLASSIC BLUE BOARD
+  ═══════════════════════════════ */
+  .board-wrap {
+    /* column hover arrows sit above the board */
+  }
+
+  /* hover arrow row */
+  .col-arrows {
+    display: grid; grid-template-columns: repeat(7, 1fr);
+    gap: 10px; padding: 0 15px; margin-bottom: 4px;
+  }
+  .col-arrow {
+    text-align: center; font-size: .8rem; height: 18px;
+    color: transparent; line-height: 18px;
+    transition: color .12s; pointer-events: none;
+  }
+  .col-arrow.show-p1 { color: var(--p1); text-shadow: 0 0 6px var(--p1); }
+  .col-arrow.show-p2 { color: var(--p2); text-shadow: 0 0 6px var(--p2); }
+
+  /* THE BOARD — classic blue just like the original */
+  .board {
+    background-color: var(--board-color);
+    padding: 15px;
+    border-radius: 15px;
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 10px;
+    box-shadow: 0 10px 0 var(--board-shadow), 0 18px 32px rgba(0,0,0,0.55);
+    position: relative;
+  }
+
+  /* Holes */
+  .cell {
+    width:  clamp(40px, 9vw, 56px);
+    height: clamp(40px, 9vw, 56px);
+    background-color: var(--hole-bg);
+    border-radius: 50%;
+    cursor: pointer;
+    position: relative;
+    box-shadow: inset 0 4px 8px rgba(0,0,0,0.5);
+    transition: background-color .15s;
+    overflow: visible; /* chips must be visible outside the cell while falling */
+  }
+  .cell:hover { background-color: #0d0d22; }
+
+  /* Board must not clip the falling chip */
+  .board        { overflow: visible; }
+  .board-wrap   { overflow: visible; }
+
+  /* ── CHIPS ── */
+  .chip {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    position: absolute;
+    top: 0; left: 0;
+    z-index: 20;
+    /* --drop-dist is set in JS per chip: distance from above the board to this cell */
+    animation: dropIn 0.52s cubic-bezier(0.5, 0, 0.5, 1) forwards;
+  }
+
+  .chip.p1 {
+    background: radial-gradient(circle at 30% 30%, #ff6b6b, var(--p1));
+    box-shadow: inset 0 -3px 0 var(--p1-dark);
+  }
+  .chip.p2 {
+    background: radial-gradient(circle at 30% 30%, #fde047, var(--p2));
+    box-shadow: inset 0 -3px 0 var(--p2-dark);
+  }
+
+  /* win chips — no drop, just instant green glow pulse */
+  .chip.win-p1 { animation: winGreen .6s ease infinite alternate; }
+  .chip.win-p2 { animation: winGreen .6s ease infinite alternate; }
+
+  /* Drop from above the board — distance driven by JS via --drop-dist */
+  @keyframes dropIn {
+    0%   { transform: translateY(calc(-1 * var(--drop-dist, 400px))); }
+    60%  { transform: translateY(0); }
+    80%  { transform: translateY(-14px); }
+    100% { transform: translateY(0); }
+  }
+
+  @keyframes winGreen {
+    from { box-shadow: 0 0 0   0px rgba(74,255,128,0);
+           transform: scale(1); }
+    to   { box-shadow: 0 0 18px 6px rgba(74,255,128,0.85),
+                       0 0 32px 10px rgba(74,255,128,0.35);
+           transform: scale(1.1); }
+  }
+
+  /* ── THINK BAR ── */
+  .think-bar {
+    height: 3px; background: var(--border); border-radius: 2px;
+    margin-top: 12px; overflow: hidden; display: none;
+  }
+  .think-bar.on { display: block; }
+  .think-fill {
+    height: 100%; width: 100%;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    background-size: 200%;
+    animation: think 1s linear infinite;
+  }
+  @keyframes think { from{background-position:200%} to{background-position:-200%} }
+
+  /* ── GAME FOOTER ── */
+  .game-footer {
+    display: flex; gap: 10px; margin-top: 16px;
+    width: 100%; justify-content: center;
+  }
+  .icon-btn {
+    background: var(--surface); border: 1px solid var(--border);
+    color: var(--muted); font-family: 'Share Tech Mono', monospace;
+    font-size: 0.68rem; letter-spacing: .12em;
+    padding: 9px 22px; border-radius: 8px;
+    cursor: pointer; transition: all .2s;
+    display: flex; align-items: center; gap: 7px;
+  }
+  .icon-btn:hover { color: var(--text); border-color: rgba(255,255,255,.2); background: var(--surface2); }
+
+  /* ── MODAL ── */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.78);
+    display: none; align-items: center; justify-content: center;
+    z-index: 200; backdrop-filter: blur(10px);
+  }
+  .modal-overlay.open { display: flex; animation: fadeUp .3s ease; }
+
+  .modal {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 20px; padding: 42px 40px;
+    text-align: center; max-width: 340px; width: 90%;
+    position: relative; overflow: hidden;
+  }
+  .modal::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at 50% 0%, var(--modal-glow, rgba(239,68,68,.35)) 0%, transparent 62%);
+    pointer-events: none;
+  }
+  .modal-icon  { font-size: 3.2rem; display: block; margin-bottom: 10px; }
+  .modal-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.45rem; font-weight: 900;
+    letter-spacing: .05em; margin-bottom: 6px;
+  }
+  .modal-sub   { font-size: 0.72rem; color: var(--muted); margin-bottom: 26px; letter-spacing: .15em; }
+  .modal-btns  { display: flex; flex-direction: column; gap: 9px; }
+
+  .btn {
+    display: block; width: 100%; border: none;
+    border-radius: 9px; font-family: 'Orbitron', sans-serif;
+    font-size: 0.75rem; font-weight: 700;
+    letter-spacing: 0.15em; text-transform: uppercase;
+    padding: 14px 20px; cursor: pointer;
+    transition: transform .2s, box-shadow .2s; margin-top: 10px;
+  }
+  .btn:first-child { margin-top: 0; }
+  .btn:hover { transform: translateY(-2px); }
+  .btn.primary { background: linear-gradient(135deg, var(--board-color), #2d55c8); color: #fff; font-weight: 900; }
+  .btn.primary:hover { box-shadow: 0 6px 22px rgba(30,58,138,.5); }
+  .btn.ghost   { background: var(--surface2); color: var(--muted); }
+  .btn.ghost:hover { color: var(--text); box-shadow: none; }
+
+  /* ── RESPONSIVE ── */
+  @media(max-width:480px){
+    .card-grid.two  { gap: 9px; }
+    .card { padding: 18px 10px 16px; }
+    .card-icon { font-size: 1.7rem; }
+    .board { gap: 6px; padding: 10px; }
+    .col-arrows { gap: 6px; padding: 0 10px; }
+    .online-box { padding: 22px 16px; }
+    .modal { padding: 32px 24px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <span class="c1">CON</span><span class="c2">NECT</span><span class="c3"> FOUR</span>
+  </div>
+  <div class="logo-sub">ARCADE EDITION</div>
+</header>
+
+<main>
+
+  <!-- ══ MAIN MENU ══ -->
+  <section id="menu-screen" class="screen active">
+    <div class="section-label" style="margin-top:28px;">select game mode</div>
+    <div class="card-grid two">
+      <div class="card v-red" onclick="showScreen('pvp-screen')">
+        <span class="card-icon">👥</span>
+        <div class="card-title">VS HUMAN</div>
+        <div class="card-desc">Challenge a real player locally or online</div>
+      </div>
+      <div class="card v-yellow" onclick="showScreen('cpu-screen')">
+        <span class="card-icon">🤖</span>
+        <div class="card-title">VS CPU</div>
+        <div class="card-desc">Test your mind against the machine</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ PVP SELECT ══ -->
+  <section id="pvp-screen" class="screen">
+    <button class="back-btn" onclick="showScreen('menu-screen')">← BACK</button>
+    <div class="section-label">choose your battlefield</div>
+    <div class="card-grid two">
+      <div class="card v-red" onclick="startLocalGame()">
+        <span class="card-icon">🖥️</span>
+        <div class="card-title">SAME DEVICE</div>
+        <div class="card-desc">Pass &amp; play, take turns on one screen</div>
+      </div>
+      <div class="card v-cyan" onclick="startOnlineGame()">
+        <span class="card-icon">🌐</span>
+        <div class="card-title">ONLINE</div>
+        <div class="card-desc">Two devices via Python server</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ ONLINE WAITING ══ -->
+  <section id="online-waiting-screen" class="screen">
+    <button class="back-btn" onclick="cancelOnlineSearch()">← CANCEL</button>
+    <div class="online-box">
+      <div class="spinner"></div>
+      <div class="status-badge searching" id="online-badge">⟳ &nbsp;SEARCHING FOR OPPONENT...</div>
+      <p style="font-size:.72rem;color:var(--muted);line-height:1.7;margin-top:10px;">
+        Make sure the Python server is running before connecting.
+      </p>
+      <p class="online-note">
+        Run: <code>python server.py</code><br>
+        Server: <code>ws://localhost:8765</code>
+      </p>
+    </div>
+  </section>
+
+  <!-- ══ CPU DIFFICULTY ══ -->
+  <section id="cpu-screen" class="screen">
+    <button class="back-btn" onclick="showScreen('menu-screen')">← BACK</button>
+    <div class="section-label">select difficulty</div>
+    <div class="card-grid four">
+      <div class="card v-green" onclick="startCpuGame(1)">
+        <span class="card-icon">🌱</span>
+        <div class="card-title">BEGINNER</div>
+        <div class="card-desc">Random moves, great for learning</div>
+      </div>
+      <div class="card v-amber" onclick="startCpuGame(3)">
+        <span class="card-icon">⚡</span>
+        <div class="card-title">MEDIUM</div>
+        <div class="card-desc">Blocks wins, hunts for chances</div>
+      </div>
+      <div class="card v-orange" onclick="startCpuGame(5)">
+        <span class="card-icon">🔥</span>
+        <div class="card-title">EXTREME</div>
+        <div class="card-desc">Deep strategy, hard to defeat</div>
+      </div>
+      <div class="card v-purple" onclick="startCpuGame(7)">
+        <span class="card-icon">💀</span>
+        <div class="card-title">IMPOSSIBLE</div>
+        <div class="card-desc">Near-perfect AI. Good luck.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ GAME SCREEN ══ -->
+  <section id="game-screen" class="screen">
+
+    <div class="score-row">
+      <div class="score-item s-p1">
+        <div class="score-val" id="score-p1">0</div>
+        <div class="score-lbl" id="slbl-p1">PLAYER 1</div>
+      </div>
+      <div class="score-sep">:</div>
+      <div class="score-item s-p2">
+        <div class="score-val" id="score-p2">0</div>
+        <div class="score-lbl" id="slbl-p2">PLAYER 2</div>
+      </div>
+    </div>
+
+    <div class="game-header">
+      <div class="player-panel" id="pp-p1">
+        <div class="pp-label">PLAYER 1</div>
+        <div class="pp-name" id="name-p1">P1</div>
+      </div>
+      <div class="turn-hub">
+        <div class="turn-dot p1" id="turn-dot"></div>
+        <div class="turn-hub-lbl" id="turn-lbl">TURN</div>
+      </div>
+      <div class="player-panel" id="pp-p2">
+        <div class="pp-label">PLAYER 2</div>
+        <div class="pp-name" id="name-p2">P2</div>
+      </div>
+    </div>
+
+    <div class="board-wrap">
+      <!-- column hover arrows -->
+      <div class="col-arrows" id="col-arrows">
+        <div class="col-arrow" id="arr-0">▼</div>
+        <div class="col-arrow" id="arr-1">▼</div>
+        <div class="col-arrow" id="arr-2">▼</div>
+        <div class="col-arrow" id="arr-3">▼</div>
+        <div class="col-arrow" id="arr-4">▼</div>
+        <div class="col-arrow" id="arr-5">▼</div>
+        <div class="col-arrow" id="arr-6">▼</div>
+      </div>
+      <!-- Classic blue board -->
+      <div class="board" id="board"></div>
+      <div class="think-bar" id="think-bar"><div class="think-fill"></div></div>
+    </div>
+
+    <div class="game-footer">
+      <button class="icon-btn" onclick="resetGame()">↺ &nbsp;NEW ROUND</button>
+      <button class="icon-btn" onclick="quitGame()">⌂ &nbsp;MENU</button>
+    </div>
+  </section>
+
+</main>
+
+<!-- ══ MODAL ══ -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal" id="modal-box">
+    <span class="modal-icon"  id="modal-icon">🏆</span>
+    <div class="modal-title"  id="modal-title">WINNER!</div>
+    <div class="modal-sub"    id="modal-sub">CONNECT FOUR</div>
+    <div class="modal-btns">
+      <button class="btn primary" onclick="closeModalPlayAgain()">▶ &nbsp;PLAY AGAIN</button>
+      <button class="btn ghost"   onclick="quitGame(); closeModal();">⌂ &nbsp;MAIN MENU</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════
+   CONSTANTS & STATE
+═══════════════════════════════════════════════ */
+const ROWS = 6, COLS = 7;
+const P1 = 1, P2 = 2, EMPTY = 0;
+
+let board         = [];
+let currentPlayer = P1;
+let gameMode      = 'local';
+let gameActive    = false;
+let aiDepth       = 1;
+let myPlayerId    = null;
+let socket        = null;
+let scores        = { 1: 0, 2: 0 };
+let p1Label       = 'PLAYER 1', p2Label = 'PLAYER 2';
+let hoveredCol    = -1;
+
+/* ═══════════════════════════════════════════════
+   SCREEN NAV
+═══════════════════════════════════════════════ */
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+/* ═══════════════════════════════════════════════
+   START HELPERS
+═══════════════════════════════════════════════ */
+function startLocalGame() {
+  p1Label = 'PLAYER 1'; p2Label = 'PLAYER 2';
+  startGame('local', 1);
+}
+function startCpuGame(depth) {
+  p1Label = 'YOU'; p2Label = 'CPU';
+  startGame('cpu', depth);
+}
+function startGame(mode, depth) {
+  gameMode  = mode;
+  aiDepth   = depth;
+  scores    = { 1: 0, 2: 0 };
+  updateScoreDisplay();
+  setupHeader();
+  initBoard();
+  showScreen('game-screen');
+}
+
+/* ═══════════════════════════════════════════════
+   BOARD INIT
+═══════════════════════════════════════════════ */
+function initBoard() {
+  const el = document.getElementById('board');
+  el.innerHTML = '';
+  board = Array(ROWS).fill(null).map(() => Array(COLS).fill(EMPTY));
+  gameActive    = true;
+  currentPlayer = P1;
+
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const cell = document.createElement('div');
+      cell.className   = 'cell';
+      cell.dataset.col = c;
+      cell.addEventListener('click',      () => handleColumnClick(c));
+      cell.addEventListener('mouseenter', () => { hoveredCol = c; updateArrows(); });
+      cell.addEventListener('mouseleave', () => { hoveredCol = -1; updateArrows(); });
+      el.appendChild(cell);
+    }
+  }
+  clearArrows();
+  updateTurnDisplay();
+  document.getElementById('think-bar').classList.remove('on');
+}
+
+function resetGame() {
+  closeModal();
+  if (gameMode === 'online' && socket && socket.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify({ type: 'restart' }));
+  }
+  initBoard();
+}
+
+function quitGame() {
+  gameActive = false;
+  if (socket) { socket.close(); socket = null; }
+  closeModal();
+  showScreen('menu-screen');
+}
+
+/* ═══════════════════════════════════════════════
+   GAMEPLAY
+═══════════════════════════════════════════════ */
+function handleColumnClick(col) {
+  if (!gameActive) return;
+  if (gameMode === 'online' && currentPlayer !== myPlayerId) return;
+  if (gameMode === 'cpu'    && currentPlayer !== P1)        return;
+
+  if (!makeMove(col, currentPlayer)) return;
+
+  if (checkWin(board, currentPlayer)) { endGame(currentPlayer); return; }
+  if (checkDraw(board))               { endGame(0);             return; }
+
+  if (gameMode === 'online') sendMove(col);
+
+  currentPlayer = currentPlayer === P1 ? P2 : P1;
+  updateTurnDisplay();
+
+  if (gameMode === 'cpu' && currentPlayer === P2) {
+    document.getElementById('think-bar').classList.add('on');
+    const delay = aiDepth <= 1 ? 400 : aiDepth <= 3 ? 600 : 800;
+    setTimeout(makeCpuMove, delay);
+  }
+}
+
+function makeMove(col, player) {
+  for (let r = ROWS - 1; r >= 0; r--) {
+    if (board[r][col] === EMPTY) {
+      board[r][col] = player;
+      animateDrop(r, col, player);
+      return true;
+    }
+  }
+  return false;
+}
+
+/* Original animateDrop — chip falls from ABOVE the board to its cell */
+function animateDrop(row, col, player, isWin = false) {
+  const boardEl   = document.getElementById('board');
+  const index     = row * COLS + col;
+  const cell      = boardEl.children[index];
+
+  // Remove any existing chip
+  const old = cell.querySelector('.chip');
+  if (old) old.remove();
+
+  const chip = document.createElement('div');
+  chip.classList.add('chip', player === P1 ? 'p1' : 'p2');
+  if (isWin) chip.classList.add(player === P1 ? 'win-p1' : 'win-p2');
+
+  // Measure how far above the board this cell sits.
+  // The chip starts at translateY(- dropDist) which places it just above the board top.
+  const boardRect = boardEl.getBoundingClientRect();
+  const cellRect  = cell.getBoundingClientRect();
+  // Distance from top of board to top of this cell, plus one cell height so chip
+  // starts fully above the board's top edge before falling in.
+  const dropDist  = (cellRect.top - boardRect.top) + cellRect.height;
+  chip.style.setProperty('--drop-dist', dropDist + 'px');
+
+  cell.appendChild(chip);
+}
+
+/* ═══════════════════════════════════════════════
+   WIN / DRAW
+═══════════════════════════════════════════════ */
+function checkWin(b, p) {
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      if (b[r][c] !== p) continue;
+      if (c+3 < COLS && b[r][c+1]===p && b[r][c+2]===p && b[r][c+3]===p) return true;
+      if (r+3 < ROWS && b[r+1][c]===p && b[r+2][c]===p && b[r+3][c]===p) return true;
+      if (r+3<ROWS && c+3<COLS && b[r+1][c+1]===p && b[r+2][c+2]===p && b[r+3][c+3]===p) return true;
+      if (r-3>=0   && c+3<COLS && b[r-1][c+1]===p && b[r-2][c+2]===p && b[r-3][c+3]===p) return true;
+    }
+  }
+  return false;
+}
+
+function findWinCells(b, p) {
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      if (b[r][c] !== p) continue;
+      const dirs = [[0,1],[1,0],[1,1],[-1,1]];
+      for (const [dr,dc] of dirs) {
+        let cells = [[r,c]];
+        for (let i=1;i<4;i++){
+          const nr=r+dr*i, nc=c+dc*i;
+          if(nr<0||nr>=ROWS||nc<0||nc>=COLS||b[nr][nc]!==p) break;
+          cells.push([nr,nc]);
+        }
+        if (cells.length===4) return cells;
+      }
+    }
+  }
+  return [];
+}
+
+function checkDraw(b) { return b[0].every(cell => cell !== EMPTY); }
+
+/* ═══════════════════════════════════════════════
+   GAME END
+═══════════════════════════════════════════════ */
+function endGame(winner) {
+  gameActive = false;
+  document.getElementById('think-bar').classList.remove('on');
+  clearArrows();
+
+  if (winner !== 0) {
+    scores[winner]++;
+    updateScoreDisplay();
+    const winCells = findWinCells(board, winner);
+    // Re-render winning chips with win glow animation
+    winCells.forEach(([r,c]) => animateDrop(r, c, winner, true));
+  }
+
+  setTimeout(() => {
+    if (winner === 0) {
+      showModal('🤝', "IT'S A DRAW!", 'THE BOARD IS FULL', 'rgba(234,179,8,0.35)');
+    } else {
+      const icon = winner === P1 ? '🔴' : '🟡';
+      const name = winner === P1 ? p1Label : p2Label;
+      const glow = winner === P1 ? 'rgba(239,68,68,.4)' : 'rgba(234,179,8,.4)';
+      showModal(icon, name + ' WINS!', 'CONNECT FOUR', glow);
+    }
+  }, winner !== 0 ? 620 : 300);
+}
+
+/* ═══════════════════════════════════════════════
+   UI
+═══════════════════════════════════════════════ */
+function updateTurnDisplay() {
+  const dot = document.getElementById('turn-dot');
+  const lbl = document.getElementById('turn-lbl');
+  dot.className = 'turn-dot ' + (currentPlayer === P1 ? 'p1' : 'p2');
+
+  if (gameMode === 'cpu') {
+    lbl.textContent = currentPlayer === P1 ? 'YOUR TURN' : 'THINKING';
+  } else if (gameMode === 'online') {
+    lbl.textContent = currentPlayer === myPlayerId ? 'YOUR TURN' : 'OPPONENT';
+  } else {
+    lbl.textContent = currentPlayer === P1 ? 'P1 TURN' : 'P2 TURN';
+  }
+  document.getElementById('pp-p1').className = 'player-panel' + (currentPlayer===P1?' active-p1':'');
+  document.getElementById('pp-p2').className = 'player-panel' + (currentPlayer===P2?' active-p2':'');
+  updateArrows();
+}
+
+function setupHeader() {
+  document.getElementById('name-p1').textContent = p1Label;
+  document.getElementById('name-p2').textContent = p2Label;
+  document.getElementById('slbl-p1').textContent = p1Label;
+  document.getElementById('slbl-p2').textContent = p2Label;
+}
+function updateScoreDisplay() {
+  document.getElementById('score-p1').textContent = scores[1];
+  document.getElementById('score-p2').textContent = scores[2];
+}
+
+function updateArrows() {
+  const cls = currentPlayer === P1 ? 'show-p1' : 'show-p2';
+  for (let c = 0; c < COLS; c++) {
+    const a = document.getElementById('arr-' + c);
+    a.className = 'col-arrow' + (c === hoveredCol && gameActive ? ' ' + cls : '');
+  }
+}
+function clearArrows() {
+  for (let c = 0; c < COLS; c++)
+    document.getElementById('arr-' + c).className = 'col-arrow';
+}
+
+/* ═══════════════════════════════════════════════
+   MODAL
+═══════════════════════════════════════════════ */
+function showModal(icon, title, sub, glowColor) {
+  document.getElementById('modal-icon').textContent  = icon;
+  document.getElementById('modal-title').textContent = title;
+  document.getElementById('modal-sub').textContent   = sub;
+  document.getElementById('modal-box').style.setProperty('--modal-glow', glowColor || 'rgba(239,68,68,.35)');
+  document.getElementById('modal-overlay').classList.add('open');
+}
+function closeModal()          { document.getElementById('modal-overlay').classList.remove('open'); }
+function closeModalPlayAgain() { closeModal(); resetGame(); }
+
+/* ═══════════════════════════════════════════════
+   CPU AI — Minimax + Alpha-Beta (original logic)
+═══════════════════════════════════════════════ */
+function makeCpuMove() {
+  document.getElementById('think-bar').classList.remove('on');
+  if (!gameActive) return;
+
+  let col;
+  if (aiDepth === 1) {
+    col = getBestMove(1);
+    if (col === -1 || !isValidMove(col)) {
+      const valid = [];
+      for (let c=0;c<COLS;c++) if(isValidMove(c)) valid.push(c);
+      col = valid[Math.floor(Math.random()*valid.length)];
+    }
+  } else {
+    col = getBestMove(aiDepth);
+  }
+
+  if (makeMove(col, P2)) {
+    if (checkWin(board, P2)) { endGame(P2); return; }
+    if (checkDraw(board))    { endGame(0);  return; }
+    currentPlayer = P1;
+    updateTurnDisplay();
+  }
+}
+
+function isValidMove(col) { return board[0][col] === EMPTY; }
+function getAvailableRow(col) {
+  for (let r=ROWS-1; r>=0; r--) if(board[r][col]===EMPTY) return r;
+  return -1;
+}
+
+const COL_ORDER = [3,2,4,1,5,0,6];
+
+function getBestMove(depth) {
+  let best = -Infinity, move = -1;
+  for (const c of COL_ORDER) {
+    if (!isValidMove(c)) continue;
+    const r = getAvailableRow(c);
+    board[r][c] = P2;
+    const score = minimax(board, depth-1, -Infinity, Infinity, false);
+    board[r][c] = EMPTY;
+    if (score > best) { best = score; move = c; }
+  }
+  return move;
+}
+
+function minimax(b, depth, alpha, beta, isMax) {
+  if (checkWin(b, P2)) return 100000 + depth;
+  if (checkWin(b, P1)) return -100000 - depth;
+  if (checkDraw(b))    return 0;
+  if (depth === 0)     return evaluateBoard(b);
+
+  if (isMax) {
+    let maxV = -Infinity;
+    for (const c of COL_ORDER) {
+      if (!isValidMove(c)) continue;
+      const r = getAvailableRow(c);
+      b[r][c] = P2;
+      const v = minimax(b, depth-1, alpha, beta, false);
+      b[r][c] = EMPTY;
+      maxV  = Math.max(maxV, v);
+      alpha = Math.max(alpha, v);
+      if (beta <= alpha) break;
+    }
+    return maxV;
+  } else {
+    let minV = Infinity;
+    for (const c of COL_ORDER) {
+      if (!isValidMove(c)) continue;
+      const r = getAvailableRow(c);
+      b[r][c] = P1;
+      const v = minimax(b, depth-1, alpha, beta, true);
+      b[r][c] = EMPTY;
+      minV = Math.min(minV, v);
+      beta = Math.min(beta, v);
+      if (beta <= alpha) break;
+    }
+    return minV;
+  }
+}
+
+function evaluateBoard(b) {
+  let score = 0;
+  for (let r=0;r<ROWS;r++) if(b[r][3]===P2) score+=3;
+
+  for (let r=0;r<ROWS;r++)
+    for (let c=0;c<COLS-3;c++)
+      score += evalWindow([b[r][c],b[r][c+1],b[r][c+2],b[r][c+3]]);
+
+  for (let c=0;c<COLS;c++)
+    for (let r=0;r<ROWS-3;r++)
+      score += evalWindow([b[r][c],b[r+1][c],b[r+2][c],b[r+3][c]]);
+
+  for (let r=0;r<ROWS-3;r++)
+    for (let c=0;c<COLS-3;c++)
+      score += evalWindow([b[r][c],b[r+1][c+1],b[r+2][c+2],b[r+3][c+3]]);
+
+  for (let r=0;r<ROWS-3;r++)
+    for (let c=0;c<COLS-3;c++)
+      score += evalWindow([b[r+3][c],b[r+2][c+1],b[r+1][c+2],b[r][c+3]]);
+
+  return score;
+}
+
+function evalWindow(w) {
+  const p2=w.filter(x=>x===P2).length, p1=w.filter(x=>x===P1).length, em=w.filter(x=>x===EMPTY).length;
+  let s=0;
+  if(p2===4) s+=100;
+  else if(p2===3&&em===1) s+=5;
+  else if(p2===2&&em===2) s+=2;
+  if(p1===3&&em===1) s-=4;
+  return s;
+}
+
+/* ═══════════════════════════════════════════════
+   ONLINE / WEBSOCKET
+═══════════════════════════════════════════════ */
+function startOnlineGame() {
+  showScreen('online-waiting-screen');
+  const badge = document.getElementById('online-badge');
+  badge.className   = 'status-badge searching';
+  badge.textContent = '⟳  CONNECTING TO SERVER...';
+
+  try {
+    socket = new WebSocket('ws://localhost:8765');
+
+    socket.onopen = () => {
+      badge.textContent = '⟳  SEARCHING FOR OPPONENT...';
+    };
+    socket.onmessage = (e) => handleServerMessage(JSON.parse(e.data));
+    socket.onclose   = () => {
+      if (document.getElementById('online-waiting-screen').classList.contains('active'))
+        showScreen('menu-screen');
+    };
+    socket.onerror   = () => {
+      badge.className   = 'status-badge error';
+      badge.textContent = '✗  COULD NOT CONNECT — is the server running?';
+    };
+  } catch(e) {
+    badge.className   = 'status-badge error';
+    badge.textContent = '✗  WebSocket not supported';
+  }
+}
+
+function cancelOnlineSearch() {
+  if (socket) socket.close();
+  socket = null;
+  showScreen('pvp-screen');
+}
+
+function handleServerMessage(data) {
+  if (data.type === 'start') {
+    myPlayerId = data.player;
+    p1Label    = myPlayerId === 1 ? 'YOU' : 'OPPONENT';
+    p2Label    = myPlayerId === 2 ? 'YOU' : 'OPPONENT';
+    scores     = { 1: 0, 2: 0 };
+    gameMode   = 'online';
+    setupHeader();
+    updateScoreDisplay();
+    initBoard();
+    showScreen('game-screen');
+    updateTurnDisplay();
+  }
+  else if (data.type === 'move') {
+    const opponent = myPlayerId === 1 ? P2 : P1;
+    if (!makeMove(data.col, opponent)) return;
+    if (checkWin(board, opponent)) { endGame(opponent); return; }
+    if (checkDraw(board))          { endGame(0);        return; }
+    currentPlayer = myPlayerId;
+    updateTurnDisplay();
+  }
+  else if (data.type === 'restart') {
+    scores = { 1: 0, 2: 0 };
+    updateScoreDisplay();
+    initBoard();
+  }
+  else if (data.type === 'opponent_left') {
+    gameActive = false;
+    showModal('👋', 'OPPONENT LEFT', 'THEY DISCONNECTED', 'rgba(68,68,90,.4)');
+  }
+}
+
+function sendMove(col) {
+  if (socket && socket.readyState === WebSocket.OPEN)
+    socket.send(JSON.stringify({ type: 'move', col }));
+}
+
+/* ═══════════════════════════════════════════════
+   KEYBOARD
+═══════════════════════════════════════════════ */
+document.addEventListener('keydown', e => {
+  const n = parseInt(e.key);
+  if (n >= 1 && n <= 7) handleColumnClick(n - 1);
+  if (e.key === 'Enter'  && document.getElementById('modal-overlay').classList.contains('open')) closeModalPlayAgain();
+  if (e.key === 'Escape' && document.getElementById('modal-overlay').classList.contains('open')) closeModal();
+});
+</script>
+</body>
+</html>
