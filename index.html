@@ -660,10 +660,11 @@ function handleColumnClick(col) {
 
   if (!makeMove(col, currentPlayer)) return;
 
+  // Send BEFORE win check — opponent must always see the final piece drop
+  if (gameMode === 'online') sendMove(col);
+
   if (checkWin(board, currentPlayer)) { endGame(currentPlayer); return; }
   if (checkDraw(board))               { endGame(0);             return; }
-
-  if (gameMode === 'online') sendMove(col);
 
   currentPlayer = currentPlayer === P1 ? P2 : P1;
   updateTurnDisplay();
@@ -1008,10 +1009,13 @@ function handleServerMessage(data) {
   else if (data.type === 'move') {
     const opponent = myPlayerId === 1 ? P2 : P1;
     if (!makeMove(data.col, opponent)) return;
-    if (checkWin(board, opponent)) { endGame(opponent); return; }
-    if (checkDraw(board))          { endGame(0);        return; }
-    currentPlayer = myPlayerId;
-    updateTurnDisplay();
+    // Wait for drop animation to finish before checking win
+    setTimeout(() => {
+      if (checkWin(board, opponent)) { endGame(opponent); return; }
+      if (checkDraw(board))          { endGame(0);        return; }
+      currentPlayer = myPlayerId;
+      updateTurnDisplay();
+    }, 560);
   }
   else if (data.type === 'restart') {
     scores = { 1: 0, 2: 0 };
