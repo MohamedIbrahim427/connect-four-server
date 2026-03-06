@@ -959,7 +959,7 @@ function startOnlineGame() {
   badge.textContent = '⟳  CONNECTING TO SERVER...';
 
   try {
-    socket = new WebSocket('web-production-63439.up.railway.app');
+    socket = new WebSocket('wss://web-production-63439.up.railway.app/ws');
 
     socket.onopen = () => {
       badge.textContent = '⟳  SEARCHING FOR OPPONENT...';
@@ -1033,5 +1033,4 @@ document.addEventListener('keydown', e => {
 });
 </script>
 </body>
-
 </html>
