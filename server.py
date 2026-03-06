@@ -6,7 +6,8 @@ from aiohttp import web, WSMsgType
 
 PORT = int(os.environ.get("PORT", 8765))
 
-rooms = {}
+waiting_player = None   # holds the first ws waiting for a match
+pairs = {}              # maps ws -> partner ws
 
 def log(msg):
     print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}", flush=True)
@@ -23,92 +24,67 @@ async def index(request):
 
 # ── WebSocket handler ────────────────────────────────────────────────
 async def websocket_handler(request):
+    global waiting_player
+
     ws = web.WebSocketResponse()
     await ws.prepare(request)
-
     addr = request.remote
-    log(f"+ Connected: {addr}")
-    room_code = None
 
+    # ── Auto-matchmaking ─────────────────────────────────────────────
+    if waiting_player is None:
+        # First player — wait for a partner
+        waiting_player = ws
+        log(f"+ Player 1 waiting: {addr}")
+        await safe_send(ws, {"type": "waiting"})
+    else:
+        # Second player — pair them up and start the game
+        partner = waiting_player
+        waiting_player = None
+
+        pairs[ws]      = partner
+        pairs[partner] = ws
+
+        log(f"+ Player 2 joined: {addr} — game starting!")
+        await safe_send(partner, {"type": "start", "player": 1})
+        await safe_send(ws,      {"type": "start", "player": 2})
+
+    # ── Message relay loop ───────────────────────────────────────────
     try:
         async for msg in ws:
             if msg.type == WSMsgType.TEXT:
                 try:
                     data = json.loads(msg.data)
                 except json.JSONDecodeError:
-                    log(f"  Bad JSON from {addr}")
                     continue
 
                 t = data.get("type")
+                partner = pairs.get(ws)
 
-                if t == "host":
-                    if room_code and room_code in rooms:
-                        del rooms[room_code]
-                    code = data.get("room", "").strip().upper()
-                    if not code or len(code) != 6:
-                        await safe_send(ws, {"type": "error", "message": "Invalid room code."})
-                        continue
-                    if code in rooms:
-                        await safe_send(ws, {"type": "error", "message": "Room already exists."})
-                        continue
-                    rooms[code] = {"host": ws, "guest": None}
-                    room_code = code
-                    log(f"  Room created: {code} by {addr}")
-                    await safe_send(ws, {"type": "room_created", "room": code})
-
-                elif t == "join":
-                    code = data.get("room", "").strip().upper()
-                    if code not in rooms:
-                        await safe_send(ws, {"type": "error", "message": f"Room '{code}' not found."})
-                        continue
-                    if rooms[code]["guest"] is not None:
-                        await safe_send(ws, {"type": "error", "message": "Room is full."})
-                        continue
-                    rooms[code]["guest"] = ws
-                    room_code = code
-                    log(f"  {addr} joined room {code} — game starting")
-                    await safe_send(rooms[code]["host"], {"type": "start", "player": 1})
-                    await safe_send(ws,                  {"type": "start", "player": 2})
-
-                elif t == "move":
-                    if not room_code or room_code not in rooms:
-                        continue
-                    room   = rooms[room_code]
-                    target = room["guest"] if ws is room["host"] else room["host"]
-                    if target:
-                        await safe_send(target, {"type": "move", "col": data["col"]})
-
-                elif t == "restart":
-                    if not room_code or room_code not in rooms:
-                        continue
-                    room   = rooms[room_code]
-                    target = room["guest"] if ws is room["host"] else room["host"]
-                    if target:
-                        await safe_send(target, {"type": "restart"})
-
-                else:
-                    log(f"  Unknown type '{t}' from {addr}")
+                if t in ("move", "restart") and partner:
+                    await safe_send(partner, data)
 
             elif msg.type == WSMsgType.ERROR:
-                log(f"  WS error: {ws.exception()}")
                 break
 
     finally:
         log(f"- Disconnected: {addr}")
-        if room_code and room_code in rooms:
-            room  = rooms[room_code]
-            other = room["guest"] if ws is room["host"] else room["host"]
-            if other:
-                await safe_send(other, {"type": "opponent_left"})
-            del rooms[room_code]
-            log(f"  Room {room_code} closed")
+
+        # If they were still waiting, clear the slot
+        if waiting_player is ws:
+            waiting_player = None
+
+        # Notify partner and clean up
+        partner = pairs.pop(ws, None)
+        if partner:
+            pairs.pop(partner, None)
+            await safe_send(partner, {"type": "opponent_left"})
 
     return ws
 
 
 app = web.Application()
-app.router.add_get("/",   index)               # serves the game
-app.router.add_get("/ws", websocket_handler)   # WebSocket
+app.router.add_get("/",   index)
+app.router.add_get("/ws", websocket_handler)
 
 if __name__ == "__main__":
     log(f"Connect Four server starting on port {PORT}")
