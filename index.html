@@ -986,6 +986,13 @@ function cancelOnlineSearch() {
 }
 
 function handleServerMessage(data) {
+  if (data.type === 'waiting') {
+    const badge = document.getElementById('online-badge');
+    badge.className   = 'status-badge searching';
+    badge.textContent = '⟳  WAITING FOR OPPONENT...';
+    return;
+  }
+
   if (data.type === 'start') {
     myPlayerId = data.player;
     p1Label    = myPlayerId === 1 ? 'YOU' : 'OPPONENT';
